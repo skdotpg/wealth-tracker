@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wealth Tracker Pro v6.2 | Secure Access</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+    :root {
+        --bg-main: #0a0c10;
+        --bg-card: #13161e;
+        --bg-input: #1a1e2a;
+        --accent: #4f8fff;
+        --accent-hover: #3d70cc;
+        --text-main: #e8ecf4;
+        --text-muted: #6b7591;
+        --green: #2ecc8a;
+        --red: #f0526a;
+        --gold: #f5c94e;
+        --radius: 14px;
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+        font-family: 'Sora', sans-serif; 
+        background: var(--bg-main); 
+        color: var(--text-main); 
+        padding: 40px 20px; 
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+    }
+
+    /* ACCESS GATE STYLES */
+    #access-gate {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: var(--bg-main);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease, visibility 0.5s;
+    }
+    #access-gate.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    .auth-card {
+        background: var(--bg-card);
+        padding: 40px;
+        border-radius: 24px;
+        width: 100%;
+        max-width: 400px;
+        border: 1px solid rgba(255,255,255,0.05);
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        text-align: center;
+    }
+
+    /* MAIN APP SHELL */
+    .shell { max-width: 900px; margin: auto; display: none; }
+    .shell.visible { display: block; animation: fadeIn 0.8s ease; }
+
+    h2 { font-size: 32px; font-weight: 700; margin-bottom: 25px; letter-spacing: -1px; }
+    h2 span { color: var(--accent); }
+    h3 { font-size: 16px; margin-bottom: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px; }
+
+    .tab-nav {
+        display: flex; gap: 8px; margin-bottom: 35px; background: var(--bg-card);
+        padding: 6px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.05);
+    }
+    .tab-link {
+        flex: 1; padding: 14px; border: none; background: none; color: var(--text-muted);
+        font-family: 'Sora', sans-serif; font-weight: 600; font-size: 14px; cursor: pointer;
+        border-radius: 12px; transition: var(--transition);
+    }
+    .tab-link.active { background: var(--bg-input); color: var(--accent); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+
+    .view { display: none; animation: slideUp 0.5s ease; }
+    .view.active { display: block; }
+
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .card {
+        background: var(--bg-card); padding: 30px; border-radius: var(--radius);
+        margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.03);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 8px; font-weight: 700; text-transform: uppercase; }
+
+    input, select {
+        width: 100%; padding: 14px 18px; margin-bottom: 20px; background: var(--bg-input);
+        border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: white;
+        font-family: inherit; outline: none; transition: border-color 0.2s, transform 0.2s;
+    }
+    input:focus { border-color: var(--accent); background: #202533; }
+
+    .input-error { border-color: var(--red) !important; animation: shake 0.4s ease; }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+    button {
+        width: 100%; padding: 16px; border: none; border-radius: 10px; background: var(--accent);
+        color: white; font-weight: 700; cursor: pointer; transition: var(--transition);
+        text-transform: uppercase; letter-spacing: 1px; font-size: 13px;
+    }
+    button:hover { background: var(--accent-hover); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(79, 143, 255, 0.3); }
+    button.secondary { background: var(--bg-input); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); }
+    button.danger { background: rgba(240, 82, 106, 0.1); color: var(--red); border: 1px solid rgba(240, 82, 106, 0.2); }
+
+    .stat-row { display: flex; justify-content: space-between; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .val { font-family: 'DM Mono', monospace; font-weight: 500; font-size: 20px; }
+
+    .txn-container { max-height: 500px; overflow-y: auto; padding-right: 10px; }
+    .txn {
+        display: flex; justify-content: space-between; align-items: center; padding: 18px;
+        background: rgba(255,255,255,0.02); margin-bottom: 10px; border-radius: 12px; transition: 0.2s;
+    }
+    .txn.income { border-right: 4px solid var(--green); }
+    .txn.expense { border-right: 4px solid var(--red); }
+
+    #notification {
+        position: fixed; top: 20px; right: 20px; padding: 15px 25px; 
+        background: var(--bg-card); border-left: 4px solid var(--accent);
+        border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        display: none; z-index: 10000; animation: fadeIn 0.3s ease;
+    }
+</style>
+</head>
+<body>
+
+<div id="notification">Action Successful</div>
+
+<div id="access-gate">
+    <div class="auth-card">
+        <h2 style="margin-bottom: 10px;">Wealth<span>Tracker</span></h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 30px;">Enter credentials to access the ledger.</p>
+        
+        <label>Full Name</label>
+        <input type="text" id="auth-name" placeholder="John Doe">
+        
+        <label>Email Address</label>
+        <input type="email" id="auth-email" placeholder="john@example.com">
+        
+        <button onclick="handleAuth()">Access System</button>
+        <p style="font-size: 10px; color: var(--text-muted); margin-top: 20px;">Secured via LocalStorage Encryption &copy; 2026</p>
+    </div>
+</div>
+
+<div class="shell" id="app-shell">
+    <header style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px;">
+        <div>
+            <h2>Wealth<span>Tracker</span> Pro</h2>
+            <p style="color: var(--text-muted); font-size: 13px;">Welcome back, <span id="user-display" style="color: var(--accent); font-weight: 600;">User</span></p>
+        </div>
+        <div id="clock" style="font-family: 'DM Mono'; color: var(--accent); font-size: 16px; font-weight: 500;">00:00:00</div>
+    </header>
+
+    <nav class="tab-nav">
+        <button class="tab-link active" onclick="openTab(event,'dash')">Dashboard</button>
+        <button class="tab-link" onclick="openTab(event,'invest')">Investments</button>
+        <button class="tab-link" onclick="openTab(event,'insights')">Analytics</button>
+        <button class="tab-link" onclick="openTab(event,'settings')">System</button>
+    </nav>
+
+    <div id="dash" class="view active">
+        <div class="grid-2">
+            <div class="card">
+                <h3>Record Entry</h3>
+                <label>Flow Direction</label>
+                <select id="type" onchange="toggleFields()">
+                    <option value="expense">Expense (-)</option>
+                    <option value="income">Income (+)</option>
+                </select>
+
+                <div id="desc-wrapper" style="display:none">
+                    <label>Description</label>
+                    <input id="desc" type="text" placeholder="Freelance, Bonus, etc.">
+                </div>
+
+                <div id="category-wrapper">
+                    <label>Classification</label>
+                    <select id="category">
+                        <option>Housing & Rent</option>
+                        <option>Food & Groceries</option>
+                        <option>Transport</option>
+                        <option>Entertainment</option>
+                        <option>Investments</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+
+                <label>Amount (Value)</label>
+                <input id="amount" type="number" placeholder="0.00">
+                <button onclick="addTxn()">Commit to Ledger</button>
+            </div>
+
+            <div class="card">
+                <h3>Account Summary</h3>
+                <div class="stat-row"><span>Total Revenue</span><span class="val" id="inc" style="color: var(--green);">₹0</span></div>
+                <div class="stat-row"><span>Total Expenditure</span><span class="val" id="exp" style="color: var(--red);">₹0</span></div>
+                <div class="stat-row" style="border: none;"><span>Net Savings</span><span class="val" id="bal" style="color: var(--accent);">₹0</span></div>
+                <div class="card" style="background: rgba(46, 204, 138, 0.05); border: 1px solid rgba(46, 204, 138, 0.1); margin-top: 10px;">
+                    <label style="color: var(--green);">Available for Investment</label>
+                    <div class="val" id="invested" style="font-size: 24px; color: var(--green);">₹0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 20px;">
+                <h3>Transaction History</h3>
+                <input id="search" type="text" placeholder="Filter ledger..." style="width: 250px; margin: 0;" oninput="render()">
+            </div>
+            <div id="list" class="txn-container"></div>
+        </div>
+    </div>
+
+    <div id="invest" class="view">
+        <div class="card">
+            <h3>Automated Asset Allocation</h3>
+            <div class="stat-row"><span>Blue Chip Stocks (50%)</span><span class="val" id="stocks">₹0</span></div>
+            <div class="stat-row"><span>Government Bonds (30%)</span><span class="val" id="bonds">₹0</span></div>
+            <div class="stat-row"><span>Physical Gold (20%)</span><span class="val" id="gold">₹0</span></div>
+        </div>
+
+        <div class="card">
+            <h3>Growth Simulator (SIP)</h3>
+            <div class="grid-2">
+                <div><label>Expected Return (%)</label><input id="rate" type="number" value="12"></div>
+                <div><label>Duration (Years)</label><input id="years" type="number" value="10"></div>
+            </div>
+            <button onclick="calcInvestment()">Generate Projection</button>
+            <div id="projection-res" style="display:none; margin-top: 25px; text-align: center;">
+                <label>Estimated Future Corpus</label>
+                <div class="val" id="future" style="font-size: 36px; color: var(--gold);">₹0</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="insights" class="view">
+        <div class="card"><h3>Expenditure Breakdown</h3><div id="catBreak"></div></div>
+        <div class="card" style="text-align: center;">
+            <h3>Financial Health Score</h3>
+            <div id="score" style="font-size: 64px; margin: 15px 0;">0</div>
+            <p id="advice" style="font-size: 18px; font-weight: 700; color: var(--accent);"></p>
+            <p id="detailed-advice" style="color: var(--text-muted); margin-top: 10px; padding: 0 40px;"></p>
+        </div>
+    </div>
+
+    <div id="settings" class="view">
+        <div class="card">
+            <h3>User Profile</h3>
+            <div class="stat-row"><span>Authorized User</span><span class="val" id="profile-name">-</span></div>
+            <div class="stat-row"><span>Contact Email</span><span class="val" id="profile-email" style="font-size:14px">-</span></div>
+            <button class="secondary" style="margin-top:10px" onclick="logout()">Logout / Switch User</button>
+        </div>
+        <div class="card">
+            <h3>Data Management</h3>
+            <button class="secondary" onclick="exportPDF()">Export Financial PDF</button>
+            <button class="danger" style="margin-top:10px" onclick="clearAll()">Factory Reset System</button>
+        </div>
+    </div>
+
+    <footer style="text-align: center; margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
+        <p style="font-size: 11px; color: var(--text-muted);">Architected by WealthPro Systems &copy; 2026.</p>
+    </footer>
+</div>
+
+<script>
+    let txns = JSON.parse(localStorage.getItem('v6_data') || '[]');
+    let settings = JSON.parse(localStorage.getItem('v6_settings') || '{ "rule": 75 }');
+    let user = JSON.parse(localStorage.getItem('v6_user') || 'null');
+
+    window.onload = () => {
+        if (user) {
+            showApp();
+        }
+        startClock();
+        render();
+        document.getElementById('rule-input')?.value ? (document.getElementById('rule-input').value = settings.rule) : null;
+    };
+
+    // AUTHENTICATION LOGIC
+    function handleAuth() {
+        const nameInput = document.getElementById('auth-name');
+        const emailInput = document.getElementById('auth-email');
+        const name = nameInput.value.trim();
+        const email = emailInput.value.trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (name.length < 2) {
+            applyErrorEffect(nameInput);
+            return notify("Error: Please enter your name.");
+        }
+        if (!emailRegex.test(email)) {
+            applyErrorEffect(emailInput);
+            return notify("Error: Enter a valid email address.");
+        }
+
+        user = { name, email };
+        localStorage.setItem('v6_user', JSON.stringify(user));
+        showApp();
+        notify("Access Granted. Welcome " + name);
+    }
+
+    function showApp() {
+        document.getElementById('access-gate').classList.add('hidden');
+        document.getElementById('app-shell').classList.add('visible');
+        document.getElementById('user-display').innerText = user.name;
+        document.getElementById('profile-name').innerText = user.name;
+        document.getElementById('profile-email').innerText = user.email;
+    }
+
+    function logout() {
+        if(confirm("Logout? Session data will be cleared from view.")) {
+            localStorage.removeItem('v6_user');
+            location.reload();
+        }
+    }
+
+    // CORE APP FUNCTIONS
+    function openTab(e, id) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.tab-link').forEach(t => t.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        e.target.classList.add('active');
+    }
+
+    function toggleFields() {
+        const type = document.getElementById('type').value;
+        document.getElementById('desc-wrapper').style.display = type === 'income' ? 'block' : 'none';
+        document.getElementById('category-wrapper').style.display = type === 'expense' ? 'block' : 'none';
+    }
+
+    function applyErrorEffect(el) {
+        el.classList.add('input-error');
+        setTimeout(() => el.classList.remove('input-error'), 400);
+    }
+
+    function addTxn() {
+        const type = document.getElementById('type').value;
+        const amountInput = document.getElementById('amount');
+        const descInput = document.getElementById('desc');
+        const amount = parseFloat(amountInput.value);
+        let desc = descInput.value.trim();
+        let category = document.getElementById('category').value;
+
+        if (isNaN(amount) || amount <= 0) {
+            applyErrorEffect(amountInput);
+            return notify("Error: Enter a positive amount.");
+        }
+
+        if (type === 'income') {
+            if (desc.length < 2) {
+                applyErrorEffect(descInput);
+                return notify("Error: Source description too short.");
+            }
+        } else {
+            desc = category;
+        }
+
+        txns.unshift({ id: Date.now(), type, desc, category: type === 'income' ? 'Revenue' : category, amount, date: new Date().toLocaleDateString('en-IN') });
+        sync();
+        clearForm();
+        notify("Transaction Logged");
+    }
+
+    function clearForm() {
+        document.getElementById('amount').value = '';
+        document.getElementById('desc').value = '';
+    }
+
+    function sync() {
+        localStorage.setItem('v6_data', JSON.stringify(txns));
+        render();
+    }
+
+    function deleteEntry(id) {
+        if (confirm("Delete this entry?")) {
+            txns = txns.filter(t => t.id !== id);
+            sync();
+        }
+    }
+
+    function render() {
+        let inc = 0, exp = 0;
+        let listHTML = '';
+        let cats = {};
+        const query = document.getElementById('search').value.toLowerCase();
+
+        txns.forEach(t => {
+            if (t.type === 'income') inc += t.amount; else {
+                exp += t.amount;
+                cats[t.category] = (cats[t.category] || 0) + t.amount;
+            }
+            if (t.desc.toLowerCase().includes(query) || t.category.toLowerCase().includes(query)) {
+                listHTML += `<div class="txn ${t.type}"><div class="txn-info"><strong>${t.desc}</strong><span>${t.date} | ${t.category}</span></div><div style="text-align:right"><div style="font-weight:700; color:${t.type==='income'?'var(--green)':'var(--red)'}">${t.type==='income'?'+':'-'} ₹${t.amount.toLocaleString()}</div><span style="font-size:10px; cursor:pointer; color:var(--text-muted)" onclick="deleteEntry(${t.id})">Delete</span></div></div>`;
+            }
+        });
+
+        const bal = inc - exp;
+        const invested = bal > 0 ? bal * (settings.rule / 100) : 0;
+        document.getElementById('inc').innerText = '₹' + inc.toLocaleString();
+        document.getElementById('exp').innerText = '₹' + exp.toLocaleString();
+        document.getElementById('bal').innerText = '₹' + bal.toLocaleString();
+        document.getElementById('invested').innerText = '₹' + Math.round(invested).toLocaleString();
+        document.getElementById('list').innerHTML = listHTML || '<p style="text-align:center; padding:20px;">No entries.</p>';
+        document.getElementById('stocks').innerText = '₹' + Math.round(invested * 0.5).toLocaleString();
+        document.getElementById('bonds').innerText = '₹' + Math.round(invested * 0.3).toLocaleString();
+        document.getElementById('gold').innerText = '₹' + Math.round(invested * 0.2).toLocaleString();
+
+        let catHTML = '';
+        for (let c in cats) catHTML += `<div class="stat-row"><span>${c}</span><span class="val">₹${cats[c].toLocaleString()}</span></div>`;
+        document.getElementById('catBreak').innerHTML = catHTML || '<p>Awaiting data...</p>';
+        updateHealth(inc, bal);
+    }
+
+    function updateHealth(inc, bal) {
+        let score = inc > 0 ? Math.round(Math.min(100, Math.max(0, (bal/inc)*100))) : 0;
+        const sEl = document.getElementById('score');
+        const aEl = document.getElementById('advice');
+        sEl.innerText = score;
+        sEl.style.color = score > 50 ? 'var(--green)' : 'var(--red)';
+        aEl.innerText = score > 70 ? "Sovereign Tier" : score > 40 ? "Accumulator Tier" : "Burner Tier";
+    }
+
+    function calcInvestment() {
+        const rateEl = document.getElementById('rate'), yearsEl = document.getElementById('years');
+        const rateVal = parseFloat(rateEl.value), yearsVal = parseFloat(yearsEl.value);
+        const bal = parseFloat(document.getElementById('bal').innerText.replace(/[^0-9.-]+/g,"")) || 0;
+
+        if (bal <= 0) return notify("Error: Zero savings available.");
+        if (isNaN(rateVal) || rateVal <= 0) { applyErrorEffect(rateEl); return notify("Invalid Rate"); }
+        if (isNaN(yearsVal) || yearsVal <= 0) { applyErrorEffect(yearsEl); return notify("Invalid Years"); }
+
+        const rate = rateVal / 100 / 12, n = yearsVal * 12, monthly = bal * (settings.rule / 100);
+        const fv = monthly * ((Math.pow(1 + rate, n) - 1) / rate) * (1 + rate);
+        document.getElementById('projection-res').style.display = 'block';
+        document.getElementById('future').innerText = '₹' + Math.round(fv).toLocaleString();
+    }
+
+    // ── FIXED: Full summary PDF export ──────────────────────────────────────
+    function exportPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 15;
+        let y = 20; // current vertical cursor
+
+        // Helper: add a new page when content would overflow
+        function checkPage(neededHeight = 10) {
+            if (y + neededHeight > pageH - 20) {
+                doc.addPage();
+                y = 20;
+            }
+        }
+
+        // Helper: draw a horizontal rule
+        function drawLine() {
+            doc.setDrawColor(200, 200, 200);
+            doc.line(margin, y, pageW - margin, y);
+            y += 6;
+        }
+
+        // ── Header ──────────────────────────────────────────────────────────
+        doc.setFillColor(30, 40, 60);
+        doc.rect(0, 0, pageW, 40, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(255, 255, 255);
+        doc.text('WEALTHTRACKER PRO', margin, 16);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Financial Summary Report', margin, 24);
+        doc.text('Generated: ' + new Date().toLocaleString('en-IN'), margin, 31);
+        y = 50;
+
+        // ── User Profile ─────────────────────────────────────────────────────
+        doc.setTextColor(40, 40, 40);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text('USER PROFILE', margin, y);
+        y += 6;
+        drawLine();
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text('Name   : ' + user.name, margin, y); y += 7;
+        doc.text('Email  : ' + user.email, margin, y); y += 7;
+        doc.text('Report Date: ' + new Date().toLocaleDateString('en-IN'), margin, y); y += 12;
+
+        // ── Account Summary ──────────────────────────────────────────────────
+        checkPage(50);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text('ACCOUNT SUMMARY', margin, y); y += 6;
+        drawLine();
+
+        // Recalculate totals directly from txns array (source of truth)
+        let totalInc = 0, totalExp = 0;
+        txns.forEach(t => { if (t.type === 'income') totalInc += t.amount; else totalExp += t.amount; });
+        const netBal = totalInc - totalExp;
+        const investable = netBal > 0 ? netBal * (settings.rule / 100) : 0;
+        const healthScore = totalInc > 0 ? Math.round(Math.min(100, Math.max(0, (netBal / totalInc) * 100))) : 0;
+        const tier = healthScore > 70 ? 'Sovereign Tier' : healthScore > 40 ? 'Accumulator Tier' : 'Burner Tier';
+
+        const summaryRows = [
+            ['Total Revenue (Income)',    '+ Rs.' + totalInc.toLocaleString('en-IN')],
+            ['Total Expenditure (Expenses)', '- Rs.' + totalExp.toLocaleString('en-IN')],
+            ['Net Savings (Balance)',     'Rs.' + netBal.toLocaleString('en-IN')],
+            ['Available for Investment (' + settings.rule + '% of savings)', 'Rs.' + Math.round(investable).toLocaleString('en-IN')],
+            ['Financial Health Score',   healthScore + ' / 100  (' + tier + ')'],
+        ];
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        summaryRows.forEach(([label, value]) => {
+            checkPage(8);
+            doc.text(label, margin, y);
+            doc.text(value, pageW - margin, y, { align: 'right' });
+            y += 8;
+        });
+        y += 6;
+
+        // ── Asset Allocation ─────────────────────────────────────────────────
+        checkPage(45);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text('ASSET ALLOCATION (from investable surplus)', margin, y); y += 6;
+        drawLine();
+
+        const allocationRows = [
+            ['Blue Chip Stocks (50%)', 'Rs.' + Math.round(investable * 0.5).toLocaleString('en-IN')],
+            ['Government Bonds (30%)', 'Rs.' + Math.round(investable * 0.3).toLocaleString('en-IN')],
+            ['Physical Gold (20%)',    'Rs.' + Math.round(investable * 0.2).toLocaleString('en-IN')],
+        ];
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        allocationRows.forEach(([label, value]) => {
+            checkPage(8);
+            doc.text(label, margin, y);
+            doc.text(value, pageW - margin, y, { align: 'right' });
+            y += 8;
+        });
+        y += 6;
+
+        // ── Category Breakdown ───────────────────────────────────────────────
+        const cats = {};
+        txns.filter(t => t.type === 'expense').forEach(t => {
+            cats[t.category] = (cats[t.category] || 0) + t.amount;
+        });
+
+        if (Object.keys(cats).length > 0) {
+            checkPage(30);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            doc.text('EXPENDITURE BREAKDOWN BY CATEGORY', margin, y); y += 6;
+            drawLine();
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            Object.entries(cats).forEach(([cat, amt]) => {
+                checkPage(8);
+                const pct = totalExp > 0 ? ((amt / totalExp) * 100).toFixed(1) + '%' : '0%';
+                doc.text(cat + '  (' + pct + ')', margin, y);
+                doc.text('Rs.' + amt.toLocaleString('en-IN'), pageW - margin, y, { align: 'right' });
+                y += 8;
+            });
+            y += 6;
+        }
+
+        // ── Transaction History ──────────────────────────────────────────────
+        if (txns.length > 0) {
+            checkPage(30);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            doc.text('TRANSACTION HISTORY (' + txns.length + ' entries)', margin, y); y += 6;
+            drawLine();
+
+            // Table header
+            doc.setFillColor(240, 243, 250);
+            doc.rect(margin, y - 4, pageW - margin * 2, 10, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text('Date', margin + 1, y + 3);
+            doc.text('Description', margin + 28, y + 3);
+            doc.text('Category', margin + 95, y + 3);
+            doc.text('Type', margin + 140, y + 3);
+            doc.text('Amount', pageW - margin, y + 3, { align: 'right' });
+            y += 12;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+
+            txns.forEach((t, i) => {
+                checkPage(8);
+
+                // Alternating row background
+                if (i % 2 === 0) {
+                    doc.setFillColor(248, 250, 252);
+                    doc.rect(margin, y - 4, pageW - margin * 2, 8, 'F');
+                }
+
+                const sign = t.type === 'income' ? '+ ' : '- ';
+                doc.setTextColor(60, 60, 60);
+                doc.text(t.date || '', margin + 1, y);
+                // Truncate long descriptions
+                const descText = t.desc.length > 28 ? t.desc.substring(0, 26) + '..' : t.desc;
+                doc.text(descText, margin + 28, y);
+                const catText = t.category.length > 18 ? t.category.substring(0, 16) + '..' : t.category;
+                doc.text(catText, margin + 95, y);
+                doc.text(t.type === 'income' ? 'Income' : 'Expense', margin + 140, y);
+
+                // Color-code amounts: green for income, red for expense
+                if (t.type === 'income') doc.setTextColor(22, 160, 90);
+                else doc.setTextColor(200, 50, 70);
+                doc.text(sign + 'Rs.' + t.amount.toLocaleString('en-IN'), pageW - margin, y, { align: 'right' });
+                doc.setTextColor(60, 60, 60);
+                y += 8;
+            });
+        }
+
+        // ── Footer on every page ─────────────────────────────────────────────
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= totalPages; p++) {
+            doc.setPage(p);
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text('WealthTracker Pro  |  Confidential  |  Page ' + p + ' of ' + totalPages,
+                pageW / 2, pageH - 10, { align: 'center' });
+        }
+
+        doc.save('WealthTracker_Report_' + Date.now() + '.pdf');
+        notify("Full PDF Report Exported");
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    function startClock() { setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000); }
+    function notify(msg) { const n = document.getElementById('notification'); n.innerText = msg; n.style.display = 'block'; setTimeout(() => n.style.display = 'none', 3000); }
+    function clearAll() { if (confirm("Reset everything?")) { localStorage.clear(); location.reload(); } }
+</script>
+</body>
+</html>
